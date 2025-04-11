@@ -9,4 +9,5 @@ A simple HTML-based application for tracking personal finances.
 *   **Category Management:** Categorize transactions for better insights.
 *   **Reporting:** Generate reports to visualize spending patterns.
 *   **Filtering:** Filter transactions by date, type, and category.
+*   
 ![alt text](image.png)
