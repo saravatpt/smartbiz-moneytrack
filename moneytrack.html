@@ -213,6 +213,7 @@
                         <option value="Shopping">Shopping</option>
                         <option value="Transportation">Transportation</option>
                         <option value="Salary">Salary</option>
+                        <!-- Categories will be populated dynamically -->
                         <option value="Other">Other</option>
                     </select>
                 </div>
@@ -274,7 +275,7 @@
             <div class="mb-4">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="font-medium">Recent Transactions</h3>
-                    <button class="text-indigo-600 text-sm">See All</button>
+                    <a href="all_transactions.html" class="text-indigo-600 text-sm">See All</a>
                 </div>
                 
                 <div id="transactions-list" class="space-y-2">
@@ -438,11 +439,8 @@
                     <label class="block text-gray-700 mb-2">Category</label>
                     <select id="transaction-category" class="w-full p-3 border rounded-lg">
                         <option value="">Select category</option>
-                        <option value="Food & Dining">Food & Dining</option>
-                        <option value="Shopping">Shopping</option>
-                        <option value="Transportation">Transportation</option>
-                        <option value="Salary">Salary</option>
-                        <option value="Other">Other</option>
+                        <!-- Categories will be populated dynamically -->
+                        <option value="add_new_category" class="text-indigo-600 font-medium">-- Add New Category --</option>
                     </select>
                 </div>
                 
@@ -554,11 +552,8 @@
                 <div class="mb-4">
                     <label class="block text-gray-700 mb-2">Category</label>
                     <select id="rule-category" class="w-full p-3 border rounded-lg">
-                        <option value="Food & Dining">Food & Dining</option>
-                        <option value="Shopping">Shopping</option>
-                        <option value="Transportation">Transportation</option>
-                        <option value="Salary">Salary</option>
-                        <option value="Other">Other</option>
+                         <option value="">Select category</option>
+                         <!-- Categories will be populated dynamically -->
                     </select>
                 </div>
             </div>
@@ -569,9 +564,127 @@
             </div>
         </div>
     </div>
+
+    <!-- Add Category Modal -->
+    <div id="add-category-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden" style="z-index: 1100;">
+        <div class="bg-white rounded-2xl w-full max-w-sm slide-in">
+            <div class="p-4 border-b">
+                <h3 class="font-medium text-lg">Add New Category</h3>
+            </div>
+            <div class="p-4">
+                <label class="block text-gray-700 mb-2">Category Name</label>
+                <input type="text" id="new-category-name" class="w-full p-3 border rounded-lg" placeholder="e.g., Groceries">
+                <p id="category-error" class="text-red-500 text-sm mt-1 hidden">Category name cannot be empty.</p>
+            </div>
+            <div class="p-4 border-t flex justify-end space-x-2">
+                <button id="cancel-add-category-btn" class="px-4 py-2 border rounded-lg">Cancel</button>
+                <button id="save-add-category-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">Save Category</button>
+            </div>
+        </div>
+    </div>
     
     <script>
-        // Sample transaction data
+        // Default categories
+        const defaultIncomeCategories = ['Salary', 'Freelance', 'Bonus', 'Other Income'];
+        const defaultExpenseCategories = ['Food & Dining', 'Shopping', 'Transportation', 'Utilities', 'Rent', 'Entertainment', 'Other Expense'];
+
+        // Load categories from localStorage or use defaults
+        let incomeCategories = JSON.parse(localStorage.getItem('moneyTrackIncomeCategories')) || [...defaultIncomeCategories];
+        let expenseCategories = JSON.parse(localStorage.getItem('moneyTrackExpenseCategories')) || [...defaultExpenseCategories];
+
+        // Function to save categories to localStorage
+        function saveCategories() {
+            localStorage.setItem('moneyTrackIncomeCategories', JSON.stringify(incomeCategories));
+            localStorage.setItem('moneyTrackExpenseCategories', JSON.stringify(expenseCategories));
+        }
+
+        // Function to populate category dropdowns
+        function populateCategoryDropdowns(selectElementId, type = 'all') {
+            const select = document.getElementById(selectElementId);
+            const currentValue = select.value; // Preserve current selection if possible
+            
+            // Clear existing options except the placeholder and "Add New"
+            const optionsToKeep = [];
+            if (select.options[0] && select.options[0].value === "") {
+                optionsToKeep.push(select.options[0].outerHTML); // Keep "Select category" or "All Categories"
+            }
+             if (selectElementId === 'transaction-category') {
+                 // Find and keep the "Add New Category" option
+                 for (let i = 0; i < select.options.length; i++) {
+                     if (select.options[i].value === 'add_new_category') {
+                         optionsToKeep.push(select.options[i].outerHTML);
+                         break;
+                     }
+                 }
+             } else if (selectElementId === 'filter-category' && select.options[0] && select.options[0].value === "all") {
+                 // Keep "All Categories" for filter
+                 optionsToKeep[0] = select.options[0].outerHTML;
+             }
+
+
+            select.innerHTML = optionsToKeep.join('');
+
+            let categoriesToAdd = [];
+            if (type === 'income') {
+                categoriesToAdd = incomeCategories;
+            } else if (type === 'expense') {
+                categoriesToAdd = expenseCategories;
+            } else { // 'all' or for filter/rule modals
+                categoriesToAdd = [...new Set([...incomeCategories, ...expenseCategories])].sort();
+            }
+
+            categoriesToAdd.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                select.appendChild(option);
+            });
+
+            // Restore previous selection if it still exists
+             if (categoriesToAdd.includes(currentValue)) {
+                 select.value = currentValue;
+             } else if (selectElementId === 'transaction-category' && currentValue !== 'add_new_category') {
+                 select.value = ""; // Reset if previous value is no longer valid
+             }
+        }
+
+        // Function to add a new category
+        function addNewCategory(name, type) {
+            name = name.trim();
+            if (!name) {
+                document.getElementById('category-error').textContent = 'Category name cannot be empty.';
+                document.getElementById('category-error').classList.remove('hidden');
+                return false;
+             }
+             
+             const categories = type === 'income' ? incomeCategories : expenseCategories;
+             if (categories.map(c => c.toLowerCase()).includes(name.toLowerCase())) {
+                 document.getElementById('category-error').textContent = 'Category already exists.';
+                 document.getElementById('category-error').classList.remove('hidden');
+                 return false;
+             }
+
+            if (type === 'income') {
+                incomeCategories.push(name);
+                incomeCategories.sort();
+            } else {
+                expenseCategories.push(name);
+                expenseCategories.sort();
+            }
+            saveCategories();
+            
+            // Repopulate all relevant dropdowns
+            populateCategoryDropdowns('transaction-category', currentTransactionType); // Update based on current type
+            populateCategoryDropdowns('filter-category', 'all');
+            populateCategoryDropdowns('rule-category', 'all');
+
+            // Update the Categories tab display
+            renderCategoriesTabContent();
+
+            return true;
+        }
+
+        // Sample transaction data (Update categories to match defaults)
         let transactions = [
             { id: 1, type: 'expense', amount: 1200, category: 'Food & Dining', description: 'Swiggy Order', date: '2023-06-15', icon: 'utensils' },
             { id: 2, type: 'income', amount: 25000, category: 'Salary', description: 'Monthly Salary', date: '2023-06-10', icon: 'money-bill-wave' },
@@ -583,17 +696,20 @@
             { id: 8, type: 'income', amount: 3000, category: 'Freelance', description: 'Consulting', date: '2023-05-20', icon: 'laptop-code' }
         ];
         
+        // Load transactions from localStorage (if implementing persistence later)
+        // let transactions = JSON.parse(localStorage.getItem('moneyTrackTransactions')) || [...defaultTransactions];
+        // function saveTransactions() { localStorage.setItem('moneyTrackTransactions', JSON.stringify(transactions)); }
+
         // SMS parsing rules
         let smsParsingRules = [
             { id: 1, name: 'HDFC Bank', sender: 'HDFCBANK', pattern: 'Debit of ₹(.*) from a/c', type: 'expense', category: 'Other' },
             { id: 2, name: 'Salary Credit', sender: 'HDFCBANK', pattern: 'Credited.*?₹([0-9,]+)', type: 'income', category: 'Salary' }
         ];
-        
         // SMS permissions state
         let hasSmsPermission = false;
         let autoImportEnabled = false;
         
-        // Current transaction type (income/expense)
+        // Current transaction type (income/expense) being added/edited
         let currentTransactionType = 'income';
         
         // Current filter settings
@@ -898,8 +1014,13 @@
             // Update reports tab with filtered data
             updateReportsTab(filteredTransactions);
             
+            // Update reports tab with filtered data (if reports tab exists)
+            if (document.getElementById('reports-content')) {
+                 updateReportsTab(filteredTransactions);
+            }
+            
             // Update categories tab with filtered data
-            updateCategoriesTab(filteredTransactions);
+            renderCategoriesTabContent(); // Use the new function that reads from category lists
             
             // Update filter summary text
             updateFilterSummary();
@@ -942,44 +1063,39 @@
                 container.appendChild(transactionEl);
             });
         }
-        
-        // Update categories tab with filtered data
-        function updateCategoriesTab(filteredTransactions) {
+        // Render Categories Tab Content based on stored category lists and filtered transactions
+        function renderCategoriesTabContent() {
             const expenseCategoriesEl = document.getElementById('expense-categories');
             const incomeCategoriesEl = document.getElementById('income-categories');
-            
-            // Calculate expense categories
-            const expenseCategories = {};
-            const incomeCategories = {};
-            
+            expenseCategoriesEl.innerHTML = ''; // Clear existing
+            incomeCategoriesEl.innerHTML = ''; // Clear existing
+
+            const filteredTransactions = filterTransactions(); // Get currently filtered transactions
+
+            // Calculate amounts per category from filtered transactions
+            const categoryAmounts = {};
             filteredTransactions.forEach(t => {
-                if (t.type === 'expense') {
-                    if (!expenseCategories[t.category]) {
-                        expenseCategories[t.category] = 0;
-                    }
-                    expenseCategories[t.category] += t.amount;
-                } else {
-                    if (!incomeCategories[t.category]) {
-                        incomeCategories[t.category] = 0;
-                    }
-                    incomeCategories[t.category] += t.amount;
+                if (!categoryAmounts[t.category]) {
+                    categoryAmounts[t.category] = { income: 0, expense: 0 };
                 }
+                categoryAmounts[t.category][t.type] += t.amount;
             });
-            
+
             // Calculate total expenses and income for percentages
-            const totalExpenses = Object.values(expenseCategories).reduce((sum, amount) => sum + amount, 0);
-            const totalIncome = Object.values(incomeCategories).reduce((sum, amount) => sum + amount, 0);
-            
-            // Render expense categories
-            expenseCategoriesEl.innerHTML = '';
-            Object.entries(expenseCategories).forEach(([category, amount]) => {
+            const totalExpenses = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+
+            // Render expense categories from the master list
+            expenseCategories.forEach(category => {
+                const amount = categoryAmounts[category]?.expense || 0;
                 const percentage = totalExpenses > 0 ? (amount / totalExpenses * 100).toFixed(1) : 0;
                 
                 const categoryEl = document.createElement('div');
+                // Add delete button later if needed
                 categoryEl.innerHTML = `
                     <div class="flex justify-between mb-1">
                         <span>${category}</span>
-                        <span>₹${amount.toLocaleString()} (${percentage}%)</span>
+                        <span>₹${amount.toLocaleString()} ${totalExpenses > 0 ? `(${percentage}%)` : ''}</span>
                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill bg-red-500" style="width: ${percentage}%"></div>
@@ -987,42 +1103,46 @@
                 `;
                 expenseCategoriesEl.appendChild(categoryEl);
             });
-            
-            if (Object.keys(expenseCategories).length === 0) {
+
+            if (expenseCategories.length === 0) {
                 expenseCategoriesEl.innerHTML = `
                     <div class="bg-gray-50 rounded-xl p-4 text-center text-gray-500">
-                        <i class="fas fa-inbox text-2xl mb-2"></i>
-                        <p>No expense categories found</p>
+                        <p>No expense categories defined.</p>
                     </div>
                 `;
+            } else if (Object.keys(categoryAmounts).filter(c => expenseCategories.includes(c) && categoryAmounts[c].expense > 0).length === 0) {
+                 // If categories exist but no spending in the filtered period
+                 // Optionally add a message or just show empty bars
             }
-            
-            // Render income categories
-            incomeCategoriesEl.innerHTML = '';
-            Object.entries(incomeCategories).forEach(([category, amount]) => {
-                const percentage = totalIncome > 0 ? (amount / totalIncome * 100).toFixed(1) : 0;
-                
+
+            // Render income categories from the master list
+            incomeCategories.forEach(category => {
+                const amount = categoryAmounts[category]?.income || 0; // Correctly get income amount
+                const percentage = totalIncome > 0 ? (amount / totalIncome * 100).toFixed(1) : 0; // Use totalIncome for percentage
+
                 const categoryEl = document.createElement('div');
+                 // Add delete button later if needed
                 categoryEl.innerHTML = `
                     <div class="flex justify-between mb-1">
                         <span>${category}</span>
-                        <span>₹${amount.toLocaleString()} (${percentage}%)</span>
+                        <span>₹${amount.toLocaleString()} ${totalIncome > 0 ? `(${percentage}%)` : ''}</span>
                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill bg-green-400" style="width: ${percentage}%"></div>
                     </div>
                 `;
-                incomeCategoriesEl.appendChild(categoryEl);
+                incomeCategoriesEl.appendChild(categoryEl); // Append to the correct element
             });
-            
-            if (Object.keys(incomeCategories).length === 0) {
-                incomeCategoriesEl.innerHTML = `
-                    <div class="bg-gray-50 rounded-xl p-4 text-center text-gray-500">
-                        <i class="fas fa-inbox text-2xl mb-2"></i>
-                        <p>No income categories found</p>
-                    </div>
-                `;
-            }
+
+             if (incomeCategories.length === 0) {
+                 incomeCategoriesEl.innerHTML = `
+                     <div class="bg-gray-50 rounded-xl p-4 text-center text-gray-500">
+                         <p>No income categories defined.</p>
+                     </div>
+                 `;
+             } else if (Object.keys(categoryAmounts).filter(c => incomeCategories.includes(c) && categoryAmounts[c].income > 0).length === 0) {
+                  // Optionally add a message or just show empty bars
+             }
         }
         
         // Update reports tab with filtered data
@@ -1342,88 +1462,134 @@
             // Update charts with filtered data
             updateCharts(filterTransactions());
         }
-        
-        // Transaction modal
+        // Transaction modal logic
         document.getElementById('add-transaction-btn').addEventListener('click', () => {
             // Reset form
             document.getElementById('transaction-amount').value = '';
-            document.getElementById('transaction-category').value = '';
             document.getElementById('transaction-description').value = '';
             document.getElementById('transaction-date').value = new Date().toISOString().split('T')[0];
             
-            // Set default type to income
+            // Set default type to income and populate categories
             currentTransactionType = 'income';
             document.getElementById('income-type-btn').classList.add('bg-indigo-600', 'text-white');
             document.getElementById('expense-type-btn').classList.remove('bg-indigo-600', 'text-white');
             document.getElementById('expense-type-btn').classList.add('bg-white');
+            populateCategoryDropdowns('transaction-category', 'income');
+            document.getElementById('transaction-category').value = ''; // Reset selection
             
             document.getElementById('transaction-modal').classList.remove('hidden');
         });
         
-        // Transaction type toggle
+        // Transaction type toggle in modal
         document.getElementById('income-type-btn').addEventListener('click', function() {
-            currentTransactionType = 'income';
-            this.classList.add('bg-indigo-600', 'text-white');
-            document.getElementById('expense-type-btn').classList.remove('bg-indigo-600', 'text-white');
-            document.getElementById('expense-type-btn').classList.add('bg-white');
+            if (currentTransactionType !== 'income') {
+                currentTransactionType = 'income';
+                this.classList.add('bg-indigo-600', 'text-white');
+                document.getElementById('expense-type-btn').classList.remove('bg-indigo-600', 'text-white');
+                document.getElementById('expense-type-btn').classList.add('bg-white');
+                populateCategoryDropdowns('transaction-category', 'income');
+                document.getElementById('transaction-category').value = ''; // Reset selection
+            }
         });
         
         document.getElementById('expense-type-btn').addEventListener('click', function() {
-            currentTransactionType = 'expense';
-            this.classList.add('bg-indigo-600', 'text-white');
-            document.getElementById('income-type-btn').classList.remove('bg-indigo-600', 'text-white');
-            document.getElementById('income-type-btn').classList.add('bg-white');
+             if (currentTransactionType !== 'expense') {
+                currentTransactionType = 'expense';
+                this.classList.add('bg-indigo-600', 'text-white');
+                document.getElementById('income-type-btn').classList.remove('bg-indigo-600', 'text-white');
+                document.getElementById('income-type-btn').classList.add('bg-white');
+                populateCategoryDropdowns('transaction-category', 'expense');
+                document.getElementById('transaction-category').value = ''; // Reset selection
+             }
+        });
+
+        // Handle "Add New Category" selection
+        document.getElementById('transaction-category').addEventListener('change', function() {
+            if (this.value === 'add_new_category') {
+                document.getElementById('new-category-name').value = ''; // Clear input
+                document.getElementById('category-error').classList.add('hidden'); // Hide error
+                document.getElementById('add-category-modal').classList.remove('hidden');
+            }
         });
         
-        // Cancel transaction
+        // Cancel transaction modal
         document.getElementById('cancel-transaction-btn').addEventListener('click', function() {
             document.getElementById('transaction-modal').classList.add('hidden');
         });
         
-        // Save transaction
+        // Save transaction logic
         document.getElementById('save-transaction-btn').addEventListener('click', function() {
             const amount = parseFloat(document.getElementById('transaction-amount').value);
             const category = document.getElementById('transaction-category').value;
-            const description = document.getElementById('transaction-description').value;
+            const description = document.getElementById('transaction-description').value.trim();
             const date = document.getElementById('transaction-date').value;
             
-            if (!amount || isNaN(amount)) {
-                alert('Please enter a valid amount');
+            if (!amount || isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid positive amount.');
                 return;
             }
             
-            if (!category) {
-                alert('Please select a category');
+            if (!category || category === 'add_new_category') {
+                alert('Please select a category.');
                 return;
             }
+             if (!date) {
+                 alert('Please select a date.');
+                 return;
+             }
             
-            // Determine icon based on category
-            let icon = 'money-bill-wave';
-            if (currentTransactionType === 'expense') {
-                if (category.includes('Food')) {
-                    icon = 'utensils';
-                } else if (category.includes('Transport')) {
-                    icon = 'car';
-                } else if (category.includes('Shopping')) {
-                    icon = 'shopping-bag';
-                }
+            // Determine icon based on category (simple logic)
+            let icon = 'question-circle'; // Default icon
+            if (currentTransactionType === 'income') {
+                 icon = 'money-bill-wave';
+                 if (category.toLowerCase().includes('salary')) icon = 'briefcase';
+                 if (category.toLowerCase().includes('freelance')) icon = 'laptop-code';
+            } else { // expense
+                 icon = 'shopping-cart'; // Default expense
+                 if (category.toLowerCase().includes('food') || category.toLowerCase().includes('dining')) icon = 'utensils';
+                 if (category.toLowerCase().includes('transport') || category.toLowerCase().includes('travel')) icon = 'car';
+                 if (category.toLowerCase().includes('shopping')) icon = 'shopping-bag';
+                 if (category.toLowerCase().includes('utilities') || category.toLowerCase().includes('bill')) icon = 'file-invoice-dollar';
+                 if (category.toLowerCase().includes('rent') || category.toLowerCase().includes('housing')) icon = 'home';
+                 if (category.toLowerCase().includes('entertainment')) icon = 'film';
             }
             
             // Add new transaction
             const newTransaction = {
-                id: Date.now(),
+                id: 't' + Date.now(), // Ensure unique ID
                 type: currentTransactionType,
                 amount,
                 category,
-                description: description || category,
+                description: description || category, // Use category if description is empty
                 date,
                 icon
             };
             
             transactions = [newTransaction, ...transactions];
-            renderTransactions();
+            // saveTransactions(); // Persist transactions if implementing localStorage for them
+            renderTransactions(); // Re-render the main list
             
             document.getElementById('transaction-modal').classList.add('hidden');
+        });
+
+        // Add Category Modal Logic
+        document.getElementById('cancel-add-category-btn').addEventListener('click', () => {
+            document.getElementById('add-category-modal').classList.add('hidden');
+            // Reset the transaction category dropdown if 'Add New' was selected
+            const transactionCategorySelect = document.getElementById('transaction-category');
+            if (transactionCategorySelect.value === 'add_new_category') {
+                transactionCategorySelect.value = "";
+            }
+        });
+
+        document.getElementById('save-add-category-btn').addEventListener('click', () => {
+            const newCategoryName = document.getElementById('new-category-name').value;
+            const success = addNewCategory(newCategoryName, currentTransactionType); // Add based on the type selected in the transaction modal
+            if (success) {
+                document.getElementById('add-category-modal').classList.add('hidden');
+                // Select the newly added category in the transaction modal
+                document.getElementById('transaction-category').value = newCategoryName;
+            }
         });
         
         // SMS modal
@@ -1483,7 +1649,10 @@
             document.getElementById('rule-sender').value = '';
             document.getElementById('rule-pattern').value = '';
             document.getElementById('rule-type').value = 'expense';
-            document.getElementById('rule-category').value = 'Other';
+            
+            // Populate categories and reset selection
+            populateCategoryDropdowns('rule-category', 'all');
+            document.getElementById('rule-category').value = ''; 
             
             document.getElementById('rule-modal').classList.remove('hidden');
         });
@@ -1500,13 +1669,17 @@
             const category = document.getElementById('rule-category').value;
             
             if (!name || !pattern) {
-                alert('Please fill in all required fields');
+                alert('Rule Name and Pattern are required.');
                 return;
             }
+             if (!category) {
+                 alert('Please select a category for the rule.');
+                 return;
+             }
             
             // Add new rule
             const newRule = {
-                id: Date.now(),
+                id: 'r' + Date.now(), // Ensure unique ID
                 name,
                 sender: sender || null,
                 pattern,
@@ -1515,6 +1688,7 @@
             };
             
             smsParsingRules = [...smsParsingRules, newRule];
+            // Persist rules if needed: saveSmsParsingRules();
             renderSmsParsingRules();
             
             document.getElementById('rule-modal').classList.add('hidden');
@@ -1522,17 +1696,23 @@
         
         // Filter modal
         document.getElementById('filter-btn').addEventListener('click', () => {
+            // Populate categories before showing
+            populateCategoryDropdowns('filter-category', 'all');
+            
             // Set initial values in filter modal
             const today = new Date();
             const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
             
             document.getElementById('filter-from').value = currentFilter.fromDate || firstDayOfMonth.toISOString().split('T')[0];
             document.getElementById('filter-to').value = currentFilter.toDate || today.toISOString().split('T')[0];
-            document.getElementById('filter-category').value = currentFilter.category;
+            document.getElementById('filter-category').value = currentFilter.category; // Set category from currentFilter
             
             // Set active date range button
-            document.querySelectorAll('.date-filter').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.date-filter[data-date-range]').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`filter-${currentFilter.dateRange}`)?.classList.add('active');
+            
+            // Set active transaction type button
+            document.querySelectorAll('.date-filter[data-filter-type]').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`filter-${currentFilter.type}`)?.classList.add('active');
             
             document.getElementById('filter-modal').classList.remove('hidden');
@@ -1543,7 +1723,7 @@
         });
         
         document.getElementById('reset-filter-btn').addEventListener('click', () => {
-            // Reset to default filter
+            // Reset to default filter (This Month, All Types, All Categories)
             currentFilter = {
                 dateRange: 'month',
                 fromDate: null,
@@ -1551,28 +1731,31 @@
                 type: 'all',
                 category: 'all'
             };
-            
+            localStorage.setItem('moneyTrackFilter', JSON.stringify(currentFilter)); // Save reset filter
             renderTransactions();
             document.getElementById('filter-modal').classList.add('hidden');
         });
         
         document.getElementById('apply-filter-btn').addEventListener('click', () => {
             // Get selected date range
-            const dateRangeBtn = document.querySelector('.date-filter.active[data-date-range]');
-            currentFilter.dateRange = dateRangeBtn ? dateRangeBtn.id.replace('filter-', '') : 'month';
+            const activeDateRangeBtn = document.querySelector('.date-filter.active[data-date-range]');
+            currentFilter.dateRange = activeDateRangeBtn ? activeDateRangeBtn.dataset.dateRange : 'month'; // Use dataset
             
             // Get from/to dates if custom range
             if (currentFilter.dateRange === 'custom') {
-                currentFilter.fromDate = document.getElementById('filter-from').value;
-                currentFilter.toDate = document.getElementById('filter-to').value;
+                currentFilter.fromDate = document.getElementById('filter-from').value || null;
+                currentFilter.toDate = document.getElementById('filter-to').value || null;
+                 // Basic validation
+                 if (currentFilter.fromDate && !currentFilter.toDate) currentFilter.toDate = new Date().toISOString().split('T')[0];
+                 if (!currentFilter.fromDate && currentFilter.toDate) currentFilter.fromDate = '1970-01-01';
             } else {
                 currentFilter.fromDate = null;
                 currentFilter.toDate = null;
             }
             
             // Get transaction type
-            const typeBtn = document.querySelector('.date-filter.active[data-filter-type]');
-            currentFilter.type = typeBtn ? typeBtn.id.replace('filter-', '') : 'all';
+            const activeTypeBtn = document.querySelector('.date-filter.active[data-filter-type]');
+            currentFilter.type = activeTypeBtn ? activeTypeBtn.dataset.filterType : 'all'; // Use dataset
             
             // Get category
             currentFilter.category = document.getElementById('filter-category').value;
@@ -1585,7 +1768,7 @@
         });
         
         document.getElementById('clear-filter-btn').addEventListener('click', () => {
-            // Reset to default filter
+            // Reset to default filter (This Month, All Types, All Categories)
             currentFilter = {
                 dateRange: 'month',
                 fromDate: null,
@@ -1593,38 +1776,53 @@
                 type: 'all',
                 category: 'all'
             };
-            
-            // Save filter to localStorage
-            localStorage.setItem('moneyTrackFilter', JSON.stringify(currentFilter));
-            
+            localStorage.setItem('moneyTrackFilter', JSON.stringify(currentFilter)); // Save reset filter
             renderTransactions();
         });
         
-        // Date range button click handlers
-        document.querySelectorAll('[data-date-range]').forEach(btn => {
+        // Date range button click handlers in filter modal
+        document.querySelectorAll('#filter-modal .date-filter[data-date-range]').forEach(btn => {
             btn.addEventListener('click', function() {
-                document.querySelectorAll('[data-date-range]').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#filter-modal .date-filter[data-date-range]').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                 // Enable/disable custom date inputs
+                 const isCustom = this.dataset.dateRange === 'custom';
+                 document.getElementById('filter-from').disabled = !isCustom;
+                 document.getElementById('filter-to').disabled = !isCustom;
+            });
+        });
+         // Initialize custom date input state
+         const initialDateRangeBtn = document.querySelector('#filter-modal .date-filter.active[data-date-range]');
+         const initialIsCustom = initialDateRangeBtn && initialDateRangeBtn.dataset.dateRange === 'custom';
+         document.getElementById('filter-from').disabled = !initialIsCustom;
+         document.getElementById('filter-to').disabled = !initialIsCustom;
+        
+        // Transaction type button click handlers in filter modal
+        document.querySelectorAll('#filter-modal .date-filter[data-filter-type]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('#filter-modal .date-filter[data-filter-type]').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
             });
         });
         
-        // Transaction type button click handlers
-        document.querySelectorAll('[data-filter-type]').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('[data-filter-type]').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
-        
-        // Initialize
+        // Initialize App
         document.addEventListener('DOMContentLoaded', () => {
             // Load saved filter from localStorage if available
             const savedFilter = localStorage.getItem('moneyTrackFilter');
             if (savedFilter) {
                 currentFilter = JSON.parse(savedFilter);
+            } else {
+                 // Default filter if none saved
+                 currentFilter = { dateRange: 'month', fromDate: null, toDate: null, type: 'all', category: 'all' };
             }
+
+            // Initial population of dropdowns
+            populateCategoryDropdowns('transaction-category', 'income'); // Default to income
+            populateCategoryDropdowns('filter-category', 'all');
+            populateCategoryDropdowns('rule-category', 'all');
             
-            renderTransactions();
+            // Initial render
+            renderTransactions(); // This now also calls renderCategoriesTabContent
             renderSmsParsingRules();
             
             // Set default date in transaction form
