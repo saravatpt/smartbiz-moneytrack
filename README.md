@@ -2,6 +2,12 @@
 
 A simple HTML-based application for tracking personal finances.
 
+To Do:
+UI - Completed
+Javascript Integration - TBD
+Testing -TBD
+
+
 ## Features
 
 *   **SMS Import:** Automatically import transactions from SMS messages.
